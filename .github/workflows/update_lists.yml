@@ -1,4 +1,4 @@
-name: ⚙️ Actualizar y Commitear Listas IPTV
+name: ⚙️ Crear y Mergear PR de Listas IPTV
 
 on:
   # 1. Ejecución programada: cada 2 horas
@@ -8,14 +8,13 @@ on:
   # 2. Ejecución manual
   workflow_dispatch:
 
-# Permisos necesarios para que la Action pueda hacer 'git commit'
+# Permisos necesarios para crear PRs y commitear
 permissions:
-  contents: write # Necesario para hacer commit
-  pages: write    # Necesario para desplegar en Pages
-  id-token: write
+  contents: write      # Para hacer commit y crear/borrar ramas
+  pull-requests: write # Para crear y mergear PRs
 
 jobs:
-  build-and-commit:
+  build-and-pr:
     runs-on: ubuntu-latest
     
     steps:
@@ -23,9 +22,6 @@ jobs:
       
       - name: ⬇️ Descargar el código del repositorio
         uses: actions/checkout@v4
-        # Necesitamos el token para poder hacer push
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }} 
 
       - name: 🐍 Configurar Python 3.10
         uses: actions/setup-python@v4
@@ -43,9 +39,9 @@ jobs:
         run: |
           python process_streams.py
           
-      # --- 3. Generar info.json ---
+      # --- 3. Generar info.json (usando URLs de raw.github) ---
       
-      - name: 📝 Generar info.json con las URLs de GitHub Pages
+      - name: 📝 Generar info.json
         run: |
           echo '{' > info.json
           echo '  "m3u_url": "https://raw.githubusercontent.com/${{ github.repository }}/main/filtered.m3u",' >> info.json
@@ -53,29 +49,39 @@ jobs:
           echo '  "xmltv_url": "https://raw.githubusercontent.com/${{ github.repository }}/main/epg.xml"' >> info.json
           echo '}' >> info.json
           
-      # --- 4. Hacer Commit de los cambios ---
+      - name: 🕒 Obtener fecha actual (para el título del PR)
+        run: echo "CURRENT_TIME=$(date -u --iso-8601=seconds)" >> $GITHUB_ENV
+
+      # --- 4. Crear el Pull Request y Hacer Auto-Merge ---
       
-      - name: 💾 Commitear archivos generados
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: 🤖 Crear Pull Request y hacer Auto-Merge
+        uses: peter-evans/create-pull-request@v6
         with:
-          commit_message: "Chore: Actualización automática de listas IPTV y EPG 🤖"
-          # Especifica los archivos a commitear
-          file_pattern: "filtered.m3u epg.json epg.xml info.json"
-          commit_user_name: "GitHub Action Bot"
-          commit_user_email: "github-actions-bot@github.com"
+          # Token para autenticación
+          token: ${{ secrets.GITHUB_TOKEN }}
           
-      # --- 5. Despliegue en GitHub Pages (Opcional si usas los links de 'raw') ---
-      # Si prefieres las URLs de github.io, puedes mantener la sección de Pages.
-      
-      - name: ⬆️ Subir artefactos para GitHub Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: |
+          # Configuración del Commit
+          commit-message: "Feat: Actualizar listas IPTV y EPG (${{ env.CURRENT_TIME }})"
+          
+          # Configuración de la Rama
+          # Usamos el ID de la ejecución para un nombre de rama único
+          branch: "auto-update/iptv-${{ github.run_id }}"
+          delete-branch: true # Borrar la rama después del merge
+          
+          # Archivos para incluir en el PR
+          add-paths: |
             filtered.m3u
             epg.json
             epg.xml
             info.json
-
-      - name: 🚀 Desplegar en GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+            
+          # Configuración del PR
+          title: "Actualización automática de IPTV/EPG | ${{ env.CURRENT_TIME }}"
+          body: |
+            Este es un PR automático generado por GitHub Actions.
+            - Actualiza el M3U filtrado
+            - Actualiza el EPG en XMLTV y JSON
+            
+          # Configuración del Auto-Merge
+          auto-merge: true
+          merge-method: squash # 'squash' junta todos los commits en uno solo
