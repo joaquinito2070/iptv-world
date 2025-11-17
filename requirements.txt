@@ -1,0 +1,4 @@
+requests
+aiohttp
+m3u-parser
+lxml
