@@ -1,4 +1,4 @@
-name: ⚙️ Crear y Mergear PR de Listas IPTV
+name: 'Crear y Mergear PR de Listas IPTV ⚙️'
 
 on:
   # Ejecución programada: cada 2 horas
@@ -69,7 +69,7 @@ jobs:
             epg.xml
             info.json
 
-      # --- 4. Habilitar Auto-Merge (¡LA CORRECCIÓN!) ---
+      # --- 4. Habilitar Auto-Merge ---
       
       - name: 🤖 Paso 2: Habilitar Auto-Merge para el PR
         # Solo se ejecuta si el Paso 1 (cpr) realmente creó un PR
