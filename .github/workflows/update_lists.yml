@@ -1,82 +1,59 @@
-name: 'Crear y Mergear PR de Listas IPTV ⚙️'
+# .github/workflows/update.yml
 
+name: Actualizar Playlist IPTV y EPG
+
+# Controles de cuándo se ejecuta
 on:
-  # Ejecución programada: cada 2 horas
+  # 1. Automáticamente cada 2 horas
   schedule:
     - cron: '0 */2 * * *'
   
-  # Ejecución manual
+  # 2. Permite la ejecución manual desde la pestaña "Actions"
   workflow_dispatch:
 
-# Permisos necesarios
-permissions:
-  contents: write      # Para hacer commit y crear ramas
-  pull-requests: write # Para crear y mergear PRs
-
 jobs:
-  build-and-merge:
+  build-and-commit:
     runs-on: ubuntu-latest
     
     steps:
-      # --- 1. Configuración ---
-      
-      - name: ⬇️ Descargar el código del repositorio
+      # 1. Obtener el código del repositorio
+      - name: Checkout del repositorio
         uses: actions/checkout@v4
 
-      - name: 🐍 Configurar Python 3.10
+      # 2. Configurar Python
+      - name: Configurar Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          cache: 'pip'
+          cache: 'pip' # Cache para acelerar instalaciones futuras
 
-      - name: 📦 Instalar dependencias de Python
+      # 3. Instalar dependencias (requests y lxml)
+      - name: Instalar dependencias
         run: |
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           
-      # --- 2. Ejecución ---
-      
-      - name: 🚀 Ejecutar el script de Python
-        run: |
-          python process_streams.py
-          
-      - name: 📝 Generar info.json
-        run: |
-          echo '{' > info.json
-          echo '  "m3u_url": "https://raw.githubusercontent.com/${{ github.repository }}/main/filtered.m3u",' >> info.json
-          echo '  "json_url": "https://raw.githubusercontent.com/${{ github.repository }}/main/epg.json",' >> info.json
-          echo '  "xmltv_url": "https://raw.githubusercontent.com/${{ github.repository }}/main/epg.xml"' >> info.json
-          echo '}' >> info.json
-          
-      - name: 🕒 Obtener fecha actual
-        run: echo "CURRENT_TIME=$(date -u --iso-8601=seconds)" >> $GITHUB_ENV
+      # 4. Instalar 'xml' que es necesario para lxml en algunas acciones
+      - name: Instalar librerías XML
+        run: sudo apt-get update && sudo apt-get install -y libxml2-dev libxslt-dev
 
-      # --- 3. Crear el Pull Request ---
-      
-      - name: 🤖 Paso 1: Crear Pull Request
-        id: cpr
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Feat: Actualizar listas IPTV y EPG (${{ env.CURRENT_TIME }})"
-          branch: "auto-update/iptv-${{ github.run_id }}"
-          delete-branch: true # IMPORTANTE: Borra la rama después de fusionar
-          title: "Actualización automática de IPTV/EPG | ${{ env.CURRENT_TIME }}"
-          body: |
-            Este es un PR automático generado por GitHub Actions.
-          add-paths: |
-            filtered.m3u
-            epg.json
-            epg.xml
-            info.json
+      # 5. Ejecutar el script de Python
+      - name: Ejecutar script de procesamiento
+        run: python process_iptv.py
 
-      # --- 4. Habilitar Auto-Merge ---
-      
-      - name: 🤖 Paso 2: Habilitar Auto-Merge para el PR
-        # Solo se ejecuta si el Paso 1 (cpr) realmente creó un PR
-        if: steps.cpr.outputs.pull-request-number != ''
+      # 6. Guardar los cambios en el repositorio
+      - name: Hacer commit y push de los archivos generados
         run: |
-          # Usamos 'gh pr merge' con la bandera '--auto'
-          # Esto le dice a GitHub: "Fusiona esto (con squash) cuando sea posible"
-          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --auto --squash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'github-actions-bot@users.noreply.github.com'
+          
+          # Añadir todos los archivos nuevos o modificados
+          git add playlist.m3u epg.xml playlist.json info.json epg.xml.gz
+          
+          # Comprobar si hay cambios antes de hacer commit
+          if ! git diff --cached --quiet; then
+            git commit -m "Actualización automática de IPTV y EPG"
+            git push
+          else
+            echo "No hay cambios en los archivos generados."
+          fi
