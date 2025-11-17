@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # --- 1. Configuración (Igual que antes) ---
+      # --- 1. Configuración ---
       
       - name: ⬇️ Descargar el código del repositorio
         uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
         run: |
           pip install -r requirements.txt
           
-      # --- 2. Ejecución (Igual que antes) ---
+      # --- 2. Ejecución ---
       
       - name: 🚀 Ejecutar el script de Python
         run: |
@@ -50,16 +50,16 @@ jobs:
       - name: 🕒 Obtener fecha actual
         run: echo "CURRENT_TIME=$(date -u --iso-8601=seconds)" >> $GITHUB_ENV
 
-      # --- 3. Crear el Pull Request (¡CORREGIDO!) ---
+      # --- 3. Crear el Pull Request ---
       
       - name: 🤖 Paso 1: Crear Pull Request
-        id: cpr # Le damos un ID a este paso
+        id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "Feat: Actualizar listas IPTV y EPG (${{ env.CURRENT_TIME }})"
           branch: "auto-update/iptv-${{ github.run_id }}"
-          delete-branch: true # Borrar la rama después del merge
+          delete-branch: true # IMPORTANTE: Borra la rama después de fusionar
           title: "Actualización automática de IPTV/EPG | ${{ env.CURRENT_TIME }}"
           body: |
             Este es un PR automático generado por GitHub Actions.
@@ -68,16 +68,15 @@ jobs:
             epg.json
             epg.xml
             info.json
-          #
-          # ⛔️ HEMOS QUITADO 'auto-merge' y 'merge-method' DE AQUÍ ⛔️
-          #
 
-      # --- 4. Hacer Auto-Merge (¡NUEVO PASO!) ---
+      # --- 4. Habilitar Auto-Merge (¡LA CORRECCIÓN!) ---
       
-      - name: 🤖 Paso 2: Fusionar (Merge) el PR
-        if: steps.cpr.outputs.pull-request-number != '' # Solo si el PR fue creado
+      - name: 🤖 Paso 2: Habilitar Auto-Merge para el PR
+        # Solo se ejecuta si el Paso 1 (cpr) realmente creó un PR
+        if: steps.cpr.outputs.pull-request-number != ''
         run: |
-          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --squash --admin --delete-branch
+          # Usamos 'gh pr merge' con la bandera '--auto'
+          # Esto le dice a GitHub: "Fusiona esto (con squash) cuando sea posible"
+          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --auto --squash
         env:
-          # Necesitamos el token para que el GitHub CLI (gh) funcione
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
