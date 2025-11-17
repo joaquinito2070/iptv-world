@@ -1,21 +1,21 @@
-name: ⚙️ Actualizar Listas IPTV y EPG
+name: ⚙️ Actualizar y Commitear Listas IPTV
 
 on:
   # 1. Ejecución programada: cada 2 horas
   schedule:
     - cron: '0 */2 * * *'
   
-  # 2. Ejecución manual: permite ejecutarlo desde la pestaña "Actions"
+  # 2. Ejecución manual
   workflow_dispatch:
 
-# Permisos necesarios para que la Action pueda desplegar en GitHub Pages
+# Permisos necesarios para que la Action pueda hacer 'git commit'
 permissions:
-  contents: read
-  pages: write
+  contents: write # Necesario para hacer commit
+  pages: write    # Necesario para desplegar en Pages
   id-token: write
 
 jobs:
-  build-and-deploy:
+  build-and-commit:
     runs-on: ubuntu-latest
     
     steps:
@@ -23,12 +23,15 @@ jobs:
       
       - name: ⬇️ Descargar el código del repositorio
         uses: actions/checkout@v4
+        # Necesitamos el token para poder hacer push
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }} 
 
       - name: 🐍 Configurar Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          cache: 'pip' # Cachear dependencias para instalaciones más rápidas
+          cache: 'pip'
 
       - name: 📦 Instalar dependencias de Python
         run: |
@@ -45,22 +48,28 @@ jobs:
       - name: 📝 Generar info.json con las URLs de GitHub Pages
         run: |
           echo '{' > info.json
-          echo '  "m3u_url": "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ env.OUTPUT_M3U_FILE }}",' >> info.json
-          echo '  "json_url": "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ env.OUTPUT_JSON_FILE }}",' >> info.json
-          echo '  "xmltv_url": "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ env.OUTPUT_XMLTV_FILE }}"' >> info.json
+          echo '  "m3u_url": "https://raw.githubusercontent.com/${{ github.repository }}/main/filtered.m3u",' >> info.json
+          echo '  "json_url": "https://raw.githubusercontent.com/${{ github.repository }}/main/epg.json",' >> info.json
+          echo '  "xmltv_url": "https://raw.githubusercontent.com/${{ github.repository }}/main/epg.xml"' >> info.json
           echo '}' >> info.json
-        env:
-          # Hacemos que los nombres de archivo del script de Python estén disponibles aquí
-          OUTPUT_M3U_FILE: "filtered.m3u"
-          OUTPUT_JSON_FILE: "epg.json"
-          OUTPUT_XMLTV_FILE: "epg.xml"
-
-      # --- 4. Despliegue en GitHub Pages ---
+          
+      # --- 4. Hacer Commit de los cambios ---
+      
+      - name: 💾 Commitear archivos generados
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Chore: Actualización automática de listas IPTV y EPG 🤖"
+          # Especifica los archivos a commitear
+          file_pattern: "filtered.m3u epg.json epg.xml info.json"
+          commit_user_name: "GitHub Action Bot"
+          commit_user_email: "github-actions-bot@github.com"
+          
+      # --- 5. Despliegue en GitHub Pages (Opcional si usas los links de 'raw') ---
+      # Si prefieres las URLs de github.io, puedes mantener la sección de Pages.
       
       - name: ⬆️ Subir artefactos para GitHub Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          # Subir los 4 archivos generados
           path: |
             filtered.m3u
             epg.json
